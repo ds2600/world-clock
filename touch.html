@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+      margin: 20px;
+      overflow-x: hidden; 
+    }
+
+    .clock-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+      position: relative;
+    }
+
+    .clock-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      width: 200px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      text-align: center;
+      transition: transform 0.5s ease, opacity 0.5s ease; 
+      position: relative;
+      z-index: 1;
+    }
+
+    .clock-card.hidden {
+      transform: translateX(-110%); 
+      opacity: 0;
+      position: absolute; 
+      pointer-events: none; 
+    }
+
+    .clock-card:hover {
+      transform: scale(1.03);
+    }
+
+    .highlight {
+      background-color: #e3f2fd;
+      border: 2px solid #2196f3;
+    }
+
+    .timezone {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 10px;
+    }
+
+    .time-24 {
+      font-size: 2em;
+      font-weight: bold;
+      margin: 5px 0;
+    }
+
+    .time-12 {
+      font-size: 1em;
+      color: #666;
+    }
+
+    .date-info {
+      font-size: 0.8em;
+      color: #999;
+      margin-top: 10px;
+    }
+
+    .hidden-tab {
+      position: fixed;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 10px;
+      height: 40px;
+      background: #2196f3;
+      border-radius: 0 5px 5px 0;
+      cursor: pointer;
+      z-index: 2;
+      display: none; 
+    }
+
+    .hidden-tab.active {
+      display: block; 
+    }
+
+    @media (max-width: 600px) {
+      .clock-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .clock-card {
+        width: 100%;
+        max-width: 300px;
+        box-sizing: border-box;
+        margin-left: 0;
+        margin-right: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="clock-container" id="clockContainer"></div>
+  <div class="hidden-tab" id="hiddenTab"></div>
+
+  <script>
+    const zones = [
+      { name: "US West", key: "uswest", tz: "America/Los_Angeles" },
+      { name: "US East", key: "useast", tz: "America/New_York" },
+      { name: "UTC", key: "utc", tz: "UTC" },
+      { name: "Japan", key: "japan", tz: "Asia/Tokyo" }
+    ];
+
+    const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const container = document.getElementById("clockContainer");
+    const hiddenTab = document.getElementById("hiddenTab");
+    let hiddenZones = []; 
+    let pressTimer;
+
+    function createClockCards() {
+      container.innerHTML = ""; 
+      zones.forEach(zone => {
+        if (!hiddenZones.includes(zone.key)) { 
+          const card = document.createElement("div");
+          card.className = "clock-card";
+          card.id = `card-${zone.key}`;
+          if (zone.tz === userTimeZone) card.classList.add("highlight");
+
+          card.innerHTML = `
+            <div class="timezone">${zone.name}</div>
+            <div class="time-24" id="time24-${zone.key}">--:--:--</div>
+            <div class="time-12" id="time12-${zone.key}">--:-- --</div>
+            <div class="date-info" id="date-${zone.key}">Loading...</div>
+          `;
+
+          card.addEventListener("touchstart", (e) => {
+            e.preventDefault(); 
+            pressTimer = setTimeout(() => hideCard(zone.key), 500); 
+          });
+
+          card.addEventListener("touchend", () => clearTimeout(pressTimer));
+          card.addEventListener("touchcancel", () => clearTimeout(pressTimer));
+
+          container.appendChild(card);
+        }
+      });
+    }
+
+    function hideCard(key) {
+      const card = document.getElementById(`card-${key}`);
+      if (card) {
+        card.classList.add("hidden");
+        setTimeout(() => {
+          hiddenZones.push(key);
+          createClockCards(); 
+          updateHiddenTab();
+        }, 500); 
+      }
+    }
+
+    function updateHiddenTab() {
+      hiddenTab.classList.toggle("active", hiddenZones.length > 0);
+    }
+
+    hiddenTab.addEventListener("click", () => {
+      hiddenZones = [];
+      createClockCards();
+      updateHiddenTab();
+    });
+
+    function updateClocks() {
+      const now = new Date();
+      zones.forEach(zone => {
+        if (!hiddenZones.includes(zone.key)) { 
+          const options = { timeZone: zone.tz };
+          const time24 = now.toLocaleString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit", ...options });
+          const time12 = now.toLocaleString("en-US", { hour12: true, hour: "numeric", minute: "2-digit", second: "2-digit", ...options });
+          const day = now.toLocaleString("en-US", { weekday: "short", ...options });
+          const date = now.toLocaleString("en-US", { year: "numeric", month: "2-digit", day: "2-digit", ...options }).replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
+
+          const time24El = document.getElementById(`time24-${zone.key}`);
+          const time12El = document.getElementById(`time12-${zone.key}`);
+          const dateEl = document.getElementById(`date-${zone.key}`);
+          if (time24El) time24El.innerText = time24;
+          if (time12El) time12El.innerText = time12;
+          if (dateEl) dateEl.innerText = `${day}, ${date}`;
+        }
+      });
+    }
+
+    // Initialize
+    createClockCards();
+    updateClocks();
+    setInterval(updateClocks, 1000);
+  </script>
+</body>
+</html>
